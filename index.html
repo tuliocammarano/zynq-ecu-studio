@@ -1,0 +1,1238 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Zynq-7010 ECU Studio</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121821; --panel2: #18212d; --border: #263244;
+    --text: #e6edf5; --muted: #8b9bb0; --accent: #38bdf8; --ok: #22c55e;
+    --warn: #f59e0b; --danger: #ef4444; --mono: "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .brand { font-weight: 700; letter-spacing: .5px; color: var(--accent); margin-right: 8px; }
+  .pill {
+    font-size: 12px; font-family: var(--mono); padding: 3px 9px; border-radius: 999px;
+    background: var(--panel2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .pill.ok { color: #052e16; background: var(--ok); border-color: var(--ok); font-weight: 700; }
+  .pill.warn { color: #451a03; background: var(--warn); border-color: var(--warn); font-weight: 700; }
+  .pill.err { color: #450a0a; background: var(--danger); border-color: var(--danger); font-weight: 700; }
+  .spacer { flex: 1; }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #0284c7; border-color: #38bdf8; font-weight: 600; }
+  button.burn { background: #b45309; border-color: #f59e0b; font-weight: 600; }
+  nav {
+    display: flex; gap: 4px; padding: 8px 16px 0; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px;
+    color: var(--muted); border: 1px solid transparent; border-bottom: none;
+  }
+  .tab.active {
+    background: var(--bg); color: var(--accent); border-color: var(--border); font-weight: 600;
+  }
+  main { padding: 16px; max-width: 1480px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Dashboard */
+  .rpm-banner {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 14px;
+  }
+  .rpm-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .rpm-val { font-size: 42px; font-weight: 800; font-family: var(--mono); color: var(--accent); }
+  .rpm-bar-bg { height: 14px; background: #070a0e; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
+  .rpm-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #22c55e 0%, #eab308 75%, #ef4444 92%); transition: width .07s linear; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  }
+  .card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .card .val { font-size: 24px; font-weight: 700; font-family: var(--mono); margin-top: 4px; }
+  .card .unit { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+  .section-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin: 16px 0 8px; }
+  .egt-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .egt-col { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+  .egt-bar-wrap { height: 70px; display: flex; align-items: flex-end; justify-content: center; margin: 6px 0; }
+  .egt-bar { width: 26px; background: #f97316; border-radius: 4px 4px 0 0; transition: height .1s; }
+
+  /* Tables 16x16 */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  select, input[type="number"], input[type="text"] {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: var(--mono);
+  }
+  .tbl-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+  table.map { border-collapse: collapse; font-family: var(--mono); font-size: 12px; width: 100%; user-select: none; }
+  table.map th, table.map td { border: 1px solid #1e293b; text-align: center; padding: 4px 2px; min-width: 46px; height: 28px; }
+  table.map th { background: #0f172a; color: var(--muted); font-weight: 600; }
+  table.map td { cursor: cell; color: #0b0f14; font-weight: 700; position: relative; }
+  table.map td.selected { outline: 2px solid #fff; outline-offset: -2px; z-index: 2; }
+  table.map td.in-range { box-shadow: inset 0 0 0 2px rgba(255,255,255,.75); }
+  table.map td.live-cell { box-shadow: inset 0 0 0 3px #38bdf8; }
+  table.map td input.cell-inp {
+    width: 100%; height: 100%; border: none; outline: none; margin: 0; padding: 0;
+    background: #0b0f14; color: #fff; text-align: center; font-family: var(--mono);
+    font-size: 12px; font-weight: 700; border-radius: 2px;
+  }
+
+  /* Curves 1D */
+  .curves-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+  .curve-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .curve-box h3 { margin: 0 0 4px; font-size: 15px; color: var(--accent); }
+  .curve-box p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+  canvas.curve { width: 100%; height: 200px; background: #070a0e; border: 1px solid var(--border); border-radius: 6px; display: block; }
+  .curve-pts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
+  .curve-pts .pt { display: flex; flex-direction: column; gap: 4px; }
+  .curve-pts input { width: 100%; text-align: center; padding: 4px; font-size: 12px; }
+
+  /* Auto Config */
+  .cfg-layout { display: grid; grid-template-columns: 290px 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 860px) { .cfg-layout { grid-template-columns: 1fr; } .egt-grid { grid-template-columns: repeat(3, 1fr); } }
+  .sidebar {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; max-height: 78vh; overflow-y: auto;
+  }
+  .menu-grp { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 4px; font-weight: 700; }
+  .menu-item {
+    padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text);
+  }
+  .menu-item:hover { background: var(--panel2); }
+  .menu-item.active { background: #0c4a6e; color: #fff; font-weight: 600; }
+  .dlg-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .dlg-panel h2 { margin: 0 0 12px; font-size: 17px; color: var(--accent); }
+  .field-row {
+    display: grid; grid-template-columns: 1fr 260px 65px; gap: 10px; align-items: center;
+    padding: 7px 0; border-bottom: 1px solid #1b2432;
+  }
+  .field-row.dirty { background: rgba(245, 158, 11, 0.08); }
+  .field-row.hidden { display: none; }
+  .field-row label { font-size: 13px; }
+  .field-row .u { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  #toast {
+    position: fixed; bottom: 16px; right: 16px; background: #0f172a; border: 1px solid var(--accent);
+    color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 13px; display: none; z-index: 99;
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">ZYNQ-7010 ECU STUDIO</span>
+  <span id="p-conn" class="pill err">OFFLINE</span>
+  <span id="p-sig" class="pill">--</span>
+  <span id="p-sync" class="pill">SYNC</span>
+  <span id="p-vanos" class="pill">VANOS</span>
+  <span id="p-launch" class="pill">LAUNCH</span>
+  <span id="p-cam" class="pill">CAM 720</span>
+  <span id="p-fault" class="pill">FAULTS</span>
+  <span class="spacer"></span>
+  <button id="btn-usb" class="primary" onclick="connectUSB()" style="display:none">Conectar USB</button>
+  <button onclick="loadPages()">Ler ECU</button>
+  <button id="btn-live" onclick="toggleLive()">Pausar Live</button>
+  <button class="burn" onclick="burnFlash()">Burn Flash</button>
+</header>
+
+<nav>
+  <div class="tab active" data-v="dash" onclick="setTab('dash')">Dashboard</div>
+  <div class="tab" data-v="tables" onclick="setTab('tables')">Mapas 16×16</div>
+  <div class="tab" data-v="curves" onclick="setTab('curves')">Curvas 1D</div>
+  <div class="tab" data-v="config" onclick="setTab('config')">Configurações (.ini)</div>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="v-dash" class="view active">
+    <div class="rpm-banner">
+      <div class="rpm-top">
+        <div><span id="d-rpm" class="rpm-val">0</span> <span style="color:var(--muted)">RPM</span></div>
+        <div style="font-family:var(--mono);font-size:13px;color:var(--muted)">
+          Ângulo: <b id="d-ang" style="color:var(--text)">0</b>° |
+          Dente: <b id="d-tooth" style="color:var(--text)">0</b> |
+          Corte Efetivo: <b id="d-rev" style="color:var(--warn)">0</b> RPM |
+          Latência: <b id="d-lat" style="color:var(--text)">--</b> ms
+        </div>
+      </div>
+      <div class="rpm-bar-bg"><div id="d-rpm-bar" class="rpm-bar"></div></div>
+    </div>
+
+    <div class="grid" id="dash-cards"></div>
+
+    <div class="section-title">EGT por Cilindro (6× FuelTech CAN)</div>
+    <div class="egt-grid" id="egt-grid"></div>
+  </section>
+
+  <!-- TABLES -->
+  <section id="v-tables" class="view">
+    <div class="toolbar">
+      <label>Mapa:</label>
+      <select id="tbl-select" onchange="SEL_ANCHOR=null;SEL_END=null;renderTable()"></select>
+      <span id="tbl-cell-info" class="pill">Clique ou arraste nas células</span>
+      <button onclick="adjustRange(-5)">-5</button>
+      <button onclick="adjustRange(-1)">-1</button>
+      <button onclick="adjustRange(1)">+1</button>
+      <button onclick="adjustRange(5)">+5</button>
+      <button onclick="scaleRange(0.95)">-5%</button>
+      <button onclick="scaleRange(1.05)">+5%</button>
+      <button class="primary" onclick="interpolateRange()">Interpolar (I)</button>
+      <span style="font-size:12px;color:var(--muted);margin-left:auto">
+        Digite direto na célula | Setas navegam | Shift+Setas ou arrastar seleciona bloco | +/- ajusta
+      </span>
+    </div>
+    <div class="tbl-wrap" id="tbl-wrap"></div>
+  </section>
+
+  <!-- CURVES -->
+  <section id="v-curves" class="view">
+    <div class="curves-grid" id="curves-wrap"></div>
+  </section>
+
+  <!-- CONFIG -->
+  <section id="v-config" class="view">
+    <div class="cfg-layout">
+      <div class="sidebar">
+        <input id="cfg-search" type="text" placeholder="Filtrar menu..." style="width:100%" oninput="renderMenu()" />
+        <div id="menu-list"></div>
+      </div>
+      <div class="dlg-panel" id="dlg-panel">
+        <h2>Selecione uma seção no menu lateral</h2>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+let SCHEMA = null;
+let PAGES = [new Uint8Array(1024), new Uint8Array(2048)];
+let LIVE = {};
+let LIVE_ON = true;
+let MODE = 'http'; // 'http' (local Python Wi-Fi bridge) | 'serial' (GitHub Pages Web Serial)
+let CUR_TAB = 'dash';
+let CUR_DLG = null;
+let SEL_ANCHOR = null; // {r, c}
+let SEL_END = null;    // {r, c}
+let DRAGGING = false;
+let INLINE_EDIT = false;
+
+// --- Pure-JS TunerStudio .ini Parser (for 100% static GitHub Pages mode) ---
+function parseIniJS(text) {
+  const schema = {
+    signature: '', endianness: 'big', pageSizes: [1024, 2048], ochBlockSize: 88,
+    constants: {}, outputChannels: {}, computedChannels: {},
+    tables: {}, curves: {}, dialogs: {}, menus: [], commands: {}
+  };
+  const stripCmt = (line) => {
+    let q = false, out = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') q = !q;
+      if (ch === ';' && !q) break;
+      out += ch;
+    }
+    return out.trim();
+  };
+  const splitCsv = (s) => {
+    const parts = []; let cur = '', q = false, d = 0;
+    for (const ch of s) {
+      if (ch === '"') { q = !q; cur += ch; }
+      else if (!q && '[{('.includes(ch)) { d++; cur += ch; }
+      else if (!q && ']})'.includes(ch)) { d = Math.max(0, d - 1); cur += ch; }
+      else if (!q && d === 0 && ch === ',') { parts.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    if (cur || parts.length) parts.push(cur.trim());
+    return parts;
+  };
+  const unq = (s) => { s = s.trim(); return (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') ? s.slice(1, -1) : s; };
+  const num = (s, def = 0) => { const v = parseFloat(s); return isNaN(v) ? def : v; };
+
+  let sec = '', curPage = 1, curTbl = null, curCrv = null, curDlg = null, curMenu = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = stripCmt(raw);
+    if (!line) continue;
+    if (line.startsWith('[') && line.endsWith(']')) {
+      sec = line.slice(1, -1).trim();
+      curTbl = curCrv = curDlg = curMenu = null;
+      continue;
+    }
+    const eq = line.indexOf('=');
+    if (eq < 0) continue;
+    const key = line.slice(0, eq).trim(), val = line.slice(eq + 1).trim();
+
+    if (sec === 'MegaTune' && key === 'signature') schema.signature = unq(val);
+    else if (sec === 'Constants') {
+      if (key === 'endianness') schema.endianness = val.toLowerCase();
+      else if (key === 'pageSize') schema.pageSizes = val.split(',').map(x => parseInt(x.trim(), 10));
+      else if (key === 'page') curPage = parseInt(val, 10);
+      else if (['nPages','pageIdentifier','pageReadCommand','pageChunkWrite','burnCommand','blockingFactor','interWriteDelay','pageActivationDelay','writeBlocks'].includes(key)) continue;
+      else {
+        const p = splitCsv(val);
+        if (p.length < 4) continue;
+        const kind = p[0].toLowerCase(), dtype = p[1].toUpperCase(), off = parseInt(p[2], 10);
+        if (kind === 'scalar' && p.length >= 9) {
+          schema.constants[key] = { name: key, kind: 'scalar', page: curPage - 1, type: dtype, offset: off, units: unq(p[3]), scale: num(p[4], 1), translate: num(p[5], 0), min: num(p[6], 0), max: num(p[7], 65535), digits: Math.round(num(p[8], 0)) };
+        } else if (kind === 'bits' && p.length >= 5) {
+          const m = p[3].match(/\[(\d+):(\d+)\]/);
+          schema.constants[key] = { name: key, kind: 'bits', page: curPage - 1, type: dtype, offset: off, bitLo: m ? +m[1] : 0, bitHi: m ? +m[2] : 7, options: p.slice(4).map(unq) };
+        } else if (kind === 'array' && p.length >= 10) {
+          const sh = p[3].replace(/[\[\]\s]/g, '').toLowerCase();
+          const shape = sh.includes('x') ? sh.split('x').map(Number) : [Number(sh)];
+          schema.constants[key] = { name: key, kind: 'array', page: curPage - 1, type: dtype, offset: off, shape, units: unq(p[4]), scale: num(p[5], 1), translate: num(p[6], 0), min: num(p[7], 0), max: num(p[8], 65535), digits: Math.round(num(p[9], 0)) };
+        }
+      }
+    } else if (sec === 'OutputChannels') {
+      if (key === 'ochBlockSize') schema.ochBlockSize = parseInt(val, 10);
+      else if (key === 'ochGetCommand' || key === 'ochReady') continue;
+      else if (val.startsWith('{') && val.endsWith('}')) schema.computedChannels[key] = val.slice(1, -1).trim();
+      else {
+        const p = splitCsv(val);
+        if (p.length >= 6 && p[0].toLowerCase() === 'scalar') {
+          schema.outputChannels[key] = { name: key, type: p[1].toUpperCase(), offset: parseInt(p[2], 10), units: unq(p[3]), scale: num(p[4], 1), translate: num(p[5], 0) };
+        }
+      }
+    } else if (sec === 'TableEditor') {
+      if (key === 'table') {
+        const p = splitCsv(val);
+        curTbl = { id: p[0], map3d: p[1] || '', title: p[2] ? unq(p[2]) : p[0], page: p[3] ? parseInt(p[3], 10) - 1 : 1, xBins: '', xLive: '', yBins: '', yLive: '', zBins: '' };
+        schema.tables[p[0]] = curTbl;
+      } else if (curTbl) {
+        const p = splitCsv(val);
+        if (key === 'xBins') { curTbl.xBins = p[0]; curTbl.xLive = p[1] || ''; }
+        else if (key === 'yBins') { curTbl.yBins = p[0]; curTbl.yLive = p[1] || ''; }
+        else if (key === 'zBins') curTbl.zBins = p[0];
+      }
+    } else if (sec === 'CurveEditor') {
+      if (key === 'curve') {
+        const p = splitCsv(val);
+        curCrv = { id: p[0], title: p[1] ? unq(p[1]) : p[0], help: '', xLabel: 'X', yLabel: 'Y', xBins: '', xLive: '', yBins: '' };
+        schema.curves[p[0]] = curCrv;
+      } else if (curCrv) {
+        const p = splitCsv(val);
+        if (key === 'topicHelp') curCrv.help = unq(val);
+        else if (key === 'columnLabel' && p.length >= 2) { curCrv.xLabel = unq(p[0]); curCrv.yLabel = unq(p[1]); }
+        else if (key === 'xBins') { curCrv.xBins = p[0]; curCrv.xLive = p[1] || ''; }
+        else if (key === 'yBins') curCrv.yBins = p[0];
+      }
+    } else if (sec === 'ControllerCommands') {
+      schema.commands[key] = unq(val);
+    } else if (sec === 'UserDefined') {
+      if (key === 'dialog') {
+        const p = splitCsv(val);
+        curDlg = { id: p[0], title: p[1] ? unq(p[1]) : p[0], fields: [] };
+        schema.dialogs[p[0]] = curDlg;
+      } else if (curDlg) {
+        if (key === 'field') {
+          const p = splitCsv(val);
+          if (p.length >= 2) {
+            let cond = '';
+            if (p.length >= 3) { const c = p[2].trim(); if (c.startsWith('{') && c.endsWith('}')) cond = c.slice(1, -1).trim(); }
+            curDlg.fields.push({ kind: 'field', label: unq(p[0]), var: p[1].trim(), cond });
+          }
+        } else if (key === 'commandButton') {
+          const p = splitCsv(val);
+          if (p.length >= 2) curDlg.fields.push({ kind: 'command', label: unq(p[0]), cmd: p[1].trim() });
+        }
+      }
+    } else if (sec === 'Menu') {
+      if (key === 'menu') { curMenu = { title: unq(val).replace(/&/g, ''), items: [] }; schema.menus.push(curMenu); }
+      else if (key === 'subMenu' && curMenu) {
+        const p = splitCsv(val);
+        if (p.length >= 2) curMenu.items.push({ target: p[0].trim(), label: unq(p[1]).replace(/&/g, '') });
+      }
+    }
+  }
+  return schema;
+}
+
+// --- Web Serial Transport (Chrome/Edge HTTPS -> USB COM11 115200 8N1) ---
+const SERIAL = {
+  port: null, reader: null, writer: null, rxBuf: [], waiters: [], sig: '', queue: Promise.resolve(), connected: false,
+  async connect() {
+    if (!('serial' in navigator)) throw new Error('Navegador sem Web Serial (use Chrome ou Edge)');
+    if (this.port) await this.disconnect();
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200, dataBits: 8, stopBits: 1, parity: 'none' });
+    try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch {}
+    this.port = port;
+    this.writer = port.writable.getWriter();
+    this.reader = port.readable.getReader();
+    this.rxBuf = [];
+    this.connected = true;
+    this._readLoop();
+    await new Promise(r => setTimeout(r, 80));
+    this.sig = await this.query();
+    return this.sig;
+  },
+  async disconnect() {
+    this.connected = false;
+    try { await this.reader?.cancel(); } catch {}
+    try { this.reader?.releaseLock(); } catch {}
+    try { this.writer?.releaseLock(); } catch {}
+    try { await this.port?.close(); } catch {}
+    this.port = this.reader = this.writer = null;
+  },
+  async _readLoop() {
+    try {
+      while (this.connected && this.reader) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        if (value) {
+          for (let i = 0; i < value.length; i++) this.rxBuf.push(value[i]);
+          this._notify();
+        }
+      }
+    } catch {}
+    this.connected = false;
+  },
+  _notify() {
+    while (this.waiters.length && this.rxBuf.length >= this.waiters[0].n) {
+      const w = this.waiters.shift();
+      clearTimeout(w.timer);
+      w.resolve(new Uint8Array(this.rxBuf.splice(0, w.n)));
+    }
+  },
+  _readExact(n, timeoutMs = 900) {
+    if (this.rxBuf.length >= n) return Promise.resolve(new Uint8Array(this.rxBuf.splice(0, n)));
+    return new Promise((resolve, reject) => {
+      const w = { n, resolve, reject, timer: null };
+      w.timer = setTimeout(() => {
+        const idx = this.waiters.indexOf(w);
+        if (idx >= 0) this.waiters.splice(idx, 1);
+        reject(new Error(`Timeout USB (${this.rxBuf.length}/${n} bytes)`));
+      }, timeoutMs);
+      this.waiters.push(w);
+    });
+  },
+  _exec(fn) {
+    const p = this.queue.then(fn, fn);
+    this.queue = p.catch(() => {});
+    return p;
+  },
+  txrx(bytes, expectLen, timeoutMs = 900) {
+    return this._exec(async () => {
+      if (!this.connected || !this.writer) throw new Error('USB desconectado');
+      this.rxBuf.length = 0;
+      await this.writer.write(bytes);
+      return expectLen > 0 ? await this._readExact(expectLen, timeoutMs) : new Uint8Array(0);
+    });
+  },
+  async query() {
+    const raw = await this.txrx(new Uint8Array([0x51]), 16);
+    return new TextDecoder().decode(raw).replace(/\0/g, '').trim();
+  },
+  readOch(sz) { return this.txrx(new Uint8Array([0x41]), sz); },
+  async readPage(pageIdx, totalSize) {
+    const out = new Uint8Array(totalSize);
+    for (let off = 0; off < totalSize; off += 256) {
+      const cnt = Math.min(256, totalSize - off);
+      const cmd = new Uint8Array([0x72, (pageIdx >> 8) & 0xFF, pageIdx & 0xFF, (off >> 8) & 0xFF, off & 0xFF, (cnt >> 8) & 0xFF, cnt & 0xFF]);
+      const chunk = await this.txrx(cmd, cnt, 1500);
+      out.set(chunk, off);
+    }
+    return out;
+  },
+  writeBytes(pageIdx, offset, bytes) {
+    const cnt = bytes.length;
+    const cmd = new Uint8Array(7 + cnt);
+    cmd[0] = 0x77;
+    cmd[1] = (pageIdx >> 8) & 0xFF; cmd[2] = pageIdx & 0xFF;
+    cmd[3] = (offset >> 8) & 0xFF;  cmd[4] = offset & 0xFF;
+    cmd[5] = (cnt >> 8) & 0xFF;     cmd[6] = cnt & 0xFF;
+    cmd.set(bytes, 7);
+    return this.txrx(cmd, 0);
+  },
+  burn(pageIdx) {
+    return this.txrx(new Uint8Array([0x62, (pageIdx >> 8) & 0xFF, pageIdx & 0xFF]), 0);
+  }
+};
+
+function decodeOchJS(raw) {
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const vals = {};
+  for (const [name, ch] of Object.entries(SCHEMA.outputChannels)) {
+    const off = ch.offset;
+    let v = 0;
+    if (ch.type === 'U08' && off + 1 <= raw.length) v = dv.getUint8(off);
+    else if (ch.type === 'S08' && off + 1 <= raw.length) v = dv.getInt8(off);
+    else if (ch.type === 'U16' && off + 2 <= raw.length) v = dv.getUint16(off, false);
+    else if (ch.type === 'S16' && off + 2 <= raw.length) v = dv.getInt16(off, false);
+    vals[name] = Number(((v + ch.translate) * ch.scale).toFixed(4));
+  }
+  const st = vals.status_flags | 0, cs = vals.compressor_status | 0, af = vals.active_faults | 0, pl = vals.prot_level | 0;
+  Object.assign(vals, {
+    engine_synced: Boolean(st & 0x01), stroke_720: Boolean(st & 0x02), ecu_disable_active: Boolean(st & 0x04),
+    limp_mode_active: pl >= 2, check_engine_light: pl >= 1,
+    compressor_running: Boolean(cs & 0x01), compressor_fault: Boolean(cs & 0x02),
+    vanos_active: Boolean(cs & 0x04), ac_clutch_active: Boolean(cs & 0x08),
+    launch_active: Boolean(cs & 0x10), cam_phase_fault: Boolean(cs & 0x20),
+    has_faults: af !== 0
+  });
+  return vals;
+}
+
+async function connectUSB() {
+  try {
+    MODE = 'serial';
+    const sig = await SERIAL.connect();
+    toast(`Conectado via USB: ${sig}`);
+    document.getElementById('btn-usb').textContent = 'USB Conectado';
+    await loadPages();
+  } catch (e) {
+    toast('Erro USB: ' + e.message);
+  }
+}
+
+const DASH_DEFS = [
+  ['map_kpa', 'MAP Coletor', 'kPa', 1],
+  ['tps_percent', 'TPS Pedal', '%', 1],
+  ['ign_advance_deg', 'Ponto Ignição', '°', 1],
+  ['inj_pulse_ms', 'Pulso Injetor', 'ms', 2],
+  ['lambda_current', 'Lambda Atual', 'λ', 3],
+  ['lambda_target_out', 'Lambda Alvo', 'λ', 3],
+  ['clt_temp', 'Água (CLT)', '°C', 1],
+  ['iat_temp', 'Ar (IAT)', '°C', 1],
+  ['batt_volts', 'Bateria', 'V', 2],
+  ['oil_press_bar', 'Pressão Óleo', 'bar', 2],
+  ['fuel_diff_bar', 'Combustível Diff', 'bar', 2],
+  ['oil_temp', 'Temp Óleo', '°C', 1],
+  ['actual_torque_nm', 'Torque Estimado', 'Nm', 1],
+  ['wg_dome_press', 'Cúpula WG', 'kPa', 1],
+  ['coolant_press', 'Pressão Água', 'bar', 2],
+  ['air_tank_press', 'Reservatório Ar', 'bar', 2],
+];
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(window._tT);
+  window._tT = setTimeout(() => el.style.display = 'none', 2600);
+}
+
+function setTab(v) {
+  CUR_TAB = v;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.v === v));
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'v-' + v));
+  if (v === 'tables') renderTable();
+  if (v === 'curves') renderCurves();
+  if (v === 'config' && CUR_DLG) renderDialog(CUR_DLG);
+}
+
+// --- Binary helpers (Big-Endian matching custom_zynq_ecu.ini) ---
+function readRaw(pageIdx, offset, type) {
+  const buf = PAGES[pageIdx];
+  if (!buf) return 0;
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  switch (type) {
+    case 'U08': return dv.getUint8(offset);
+    case 'S08': return dv.getInt8(offset);
+    case 'U16': return dv.getUint16(offset, false);
+    case 'S16': return dv.getInt16(offset, false);
+    case 'U32': return dv.getUint32(offset, false);
+    case 'S32': return dv.getInt32(offset, false);
+    default: return 0;
+  }
+}
+
+function encodeRaw(val, type) {
+  const sz = type.endsWith('08') ? 1 : (type.endsWith('16') ? 2 : 4);
+  const ab = new ArrayBuffer(sz);
+  const dv = new DataView(ab);
+  const n = Math.round(val);
+  if (type === 'U08') dv.setUint8(0, Math.max(0, Math.min(255, n)));
+  else if (type === 'S08') dv.setInt8(0, Math.max(-128, Math.min(127, n)));
+  else if (type === 'U16') dv.setUint16(0, Math.max(0, Math.min(65535, n)), false);
+  else if (type === 'S16') dv.setInt16(0, Math.max(-32768, Math.min(32767, n)), false);
+  else if (type === 'U32') dv.setUint32(0, Math.max(0, n), false);
+  else if (type === 'S32') dv.setInt32(0, n, false);
+  return Array.from(new Uint8Array(ab));
+}
+
+function typeSize(type) { return type.endsWith('08') ? 1 : (type.endsWith('16') ? 2 : 4); }
+
+function getConstVal(c) {
+  if (c.kind === 'scalar') {
+    const raw = readRaw(c.page, c.offset, c.type);
+    return Number(((raw + c.translate) * c.scale).toFixed(c.digits));
+  }
+  if (c.kind === 'bits') {
+    const raw = readRaw(c.page, c.offset, c.type);
+    const mask = (1 << (c.bitHi - c.bitLo + 1)) - 1;
+    return (raw >> c.bitLo) & mask;
+  }
+  if (c.kind === 'array') {
+    const count = c.shape.reduce((a, b) => a * b, 1);
+    const sz = typeSize(c.type);
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const raw = readRaw(c.page, c.offset + i * sz, c.type);
+      arr.push(Number(((raw + c.translate) * c.scale).toFixed(c.digits)));
+    }
+    return arr;
+  }
+  return 0;
+}
+
+async function writeECU(writes) {
+  if (MODE === 'serial') {
+    for (const w of writes) {
+      await SERIAL.writeBytes(w.page, w.offset, new Uint8Array(w.bytes));
+    }
+  } else {
+    const res = await fetch('/api/write', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({writes})
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'write failed');
+  }
+  for (const w of writes) {
+    for (let i = 0; i < w.bytes.length; i++) PAGES[w.page][w.offset + i] = w.bytes[i];
+  }
+}
+
+async function burnFlash() {
+  try {
+    if (MODE === 'serial') {
+      await SERIAL.burn(0);
+      await SERIAL.burn(1);
+      toast('Burn enviado via USB para a ECU!');
+    } else {
+      const res = await fetch('/api/burn', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pages: [0, 1]})
+      });
+      const j = await res.json();
+      toast(j.ok ? 'Burn enviado para a ECU!' : 'Erro no Burn: ' + j.error);
+    }
+  } catch (e) { toast('Erro Burn: ' + e.message); }
+}
+
+// --- Init & Polling ---
+function buildDashSkeleton() {
+  document.getElementById('dash-cards').innerHTML = DASH_DEFS.map(([k, lbl, u]) =>
+    `<div class="card"><div class="lbl">${lbl}</div><div class="val"><span id="dv-${k}">--</span><span class="unit">${u}</span></div></div>`
+  ).join('');
+  let egtHtml = '';
+  for (let i = 1; i <= 6; i++) {
+    egtHtml += `<div class="egt-col">
+      <div class="lbl">CIL ${i}</div>
+      <div class="egt-bar-wrap"><div id="egtb-${i}" class="egt-bar" style="height:10%"></div></div>
+      <div style="font-family:var(--mono);font-weight:700"><span id="egtv-${i}">--</span> °C</div>
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Trim: <span id="egtt-${i}">0.0</span>%</div>
+    </div>`;
+  }
+  document.getElementById('egt-grid').innerHTML = egtHtml;
+}
+
+async function loadPages() {
+  try {
+    if (MODE === 'serial') {
+      if (!SERIAL.connected) { toast('Clique em "Conectar USB" primeiro'); return; }
+      const p0 = await SERIAL.readPage(0, SCHEMA.pageSizes[0]);
+      const p1 = await SERIAL.readPage(1, SCHEMA.pageSizes[1]);
+      PAGES = [p0, p1];
+    } else {
+      const r = await fetch('/api/pages');
+      const j = await r.json();
+      if (!j.connected) { toast('ECU offline ao ler páginas'); return; }
+      PAGES = j.pages.map(arr => new Uint8Array(arr));
+    }
+    toast('Páginas 1 e 2 sincronizadas com a ECU');
+    if (CUR_TAB === 'tables') renderTable();
+    if (CUR_TAB === 'curves') renderCurves();
+    if (CUR_TAB === 'config' && CUR_DLG) renderDialog(CUR_DLG);
+  } catch (e) { toast('Erro ao ler páginas: ' + e.message); }
+}
+
+function toggleLive() {
+  LIVE_ON = !LIVE_ON;
+  document.getElementById('btn-live').textContent = LIVE_ON ? 'Pausar Live' : 'Retomar Live';
+}
+
+function setPill(id, state, text) {
+  const el = document.getElementById(id);
+  el.className = 'pill' + (state ? ' ' + state : '');
+  if (text !== undefined) el.textContent = text;
+}
+
+async function pollLive() {
+  if (LIVE_ON) {
+    try {
+      let j;
+      if (MODE === 'serial') {
+        if (!SERIAL.connected) {
+          j = { connected: false };
+        } else {
+          const t0 = performance.now();
+          const raw = await SERIAL.readOch(SCHEMA.ochBlockSize);
+          j = { connected: true, signature: SERIAL.sig, latency_ms: Math.round(performance.now() - t0), data: decodeOchJS(raw) };
+        }
+      } else {
+        const r = await fetch('/api/live');
+        j = await r.json();
+      }
+      if (j.connected) {
+        LIVE = j.data || {};
+        setPill('p-conn', 'ok', 'ONLINE');
+        setPill('p-sig', '', j.signature || 'ECU');
+        setPill('p-sync', LIVE.engine_synced ? 'ok' : 'warn', LIVE.engine_synced ? 'SYNC 720' : 'NO SYNC');
+        setPill('p-vanos', LIVE.vanos_active ? 'ok' : '', 'VANOS');
+        setPill('p-launch', LIVE.launch_active ? 'warn' : '', 'LAUNCH');
+        setPill('p-cam', LIVE.cam_phase_fault ? 'err' : 'ok', LIVE.cam_phase_fault ? 'CAM FAULT' : 'CAM OK');
+        setPill('p-fault', LIVE.has_faults ? 'err' : '', LIVE.has_faults ? 'FAULT' : 'NO FAULT');
+
+        const rpm = Math.round(LIVE.engine_rpm || 0);
+        document.getElementById('d-rpm').textContent = rpm;
+        document.getElementById('d-ang').textContent = Math.round(LIVE.crank_angle_deg || 0);
+        document.getElementById('d-tooth').textContent = Math.round(LIVE.tooth_count || 0);
+        document.getElementById('d-rev').textContent = Math.round(LIVE.rev_limit_eff || 0);
+        document.getElementById('d-lat').textContent = j.latency_ms ?? '--';
+        document.getElementById('d-rpm-bar').style.width = Math.min(100, (rpm / 8000) * 100) + '%';
+
+        for (const [k, , , dec] of DASH_DEFS) {
+          const el = document.getElementById('dv-' + k);
+          if (el) el.textContent = (LIVE[k] !== undefined) ? Number(LIVE[k]).toFixed(dec) : '--';
+        }
+        for (let i = 1; i <= 6; i++) {
+          const t = Number(LIVE['egt_cyl' + i] || 0);
+          const tr = Number(LIVE['egt_trim' + i] || 0);
+          document.getElementById('egtv-' + i).textContent = Math.round(t);
+          document.getElementById('egtt-' + i).textContent = tr.toFixed(1);
+          const h = Math.max(5, Math.min(100, (t / 1050) * 100));
+          const b = document.getElementById('egtb-' + i);
+          b.style.height = h + '%';
+          b.style.background = t > 920 ? '#ef4444' : (t > 840 ? '#f59e0b' : '#22c55e');
+        }
+        if (CUR_TAB === 'tables') highlightLiveTableCell();
+        if (CUR_TAB === 'curves') drawAllCurves();
+      } else {
+        setPill('p-conn', 'err', 'OFFLINE');
+      }
+    } catch {
+      setPill('p-conn', 'err', 'OFFLINE');
+    }
+  }
+  setTimeout(pollLive, 100);
+}
+
+// --- 16x16 Tables (FTManager-style inline + range editing) ---
+function heatColor(v, minV, maxV) {
+  const t = Math.max(0, Math.min(1, (v - minV) / Math.max(1e-6, maxV - minV)));
+  const hue = (1 - t) * 210;
+  return `hsl(${hue.toFixed(0)}, 75%, 52%)`;
+}
+
+function getActiveTableMeta() {
+  const tid = document.getElementById('tbl-select')?.value;
+  const tb = SCHEMA?.tables?.[tid];
+  if (!tb) return null;
+  const xc = SCHEMA.constants[tb.xBins], yc = SCHEMA.constants[tb.yBins], zc = SCHEMA.constants[tb.zBins];
+  if (!xc || !yc || !zc) return null;
+  return { tid, tb, xc, yc, zc, rows: zc.shape[0], cols: zc.shape[1] };
+}
+
+function getSelectedCells() {
+  if (!SEL_ANCHOR) return [];
+  const e = SEL_END || SEL_ANCHOR;
+  const rMin = Math.min(SEL_ANCHOR.r, e.r), rMax = Math.max(SEL_ANCHOR.r, e.r);
+  const cMin = Math.min(SEL_ANCHOR.c, e.c), cMax = Math.max(SEL_ANCHOR.c, e.c);
+  const cells = [];
+  for (let r = rMin; r <= rMax; r++)
+    for (let c = cMin; c <= cMax; c++)
+      cells.push({ r, c });
+  return cells;
+}
+
+function updateSelectionVisuals() {
+  document.querySelectorAll('table.map td').forEach(td => td.classList.remove('selected', 'in-range'));
+  const cells = getSelectedCells();
+  if (!cells.length) return;
+  for (const { r, c } of cells) {
+    document.getElementById(`tc-${r}-${c}`)?.classList.add('in-range');
+  }
+  const cur = SEL_END || SEL_ANCHOR;
+  document.getElementById(`tc-${cur.r}-${cur.c}`)?.classList.add('selected');
+
+  const meta = getActiveTableMeta();
+  if (!meta) return;
+  const xs = getConstVal(meta.xc), ys = getConstVal(meta.yc);
+  if (cells.length === 1) {
+    document.getElementById('tbl-cell-info').textContent =
+      `${ys[cur.r]} ${meta.yc.units} × ${xs[cur.c]} ${meta.xc.units}`;
+  } else {
+    const rCnt = Math.abs((SEL_END?.r ?? SEL_ANCHOR.r) - SEL_ANCHOR.r) + 1;
+    const cCnt = Math.abs((SEL_END?.c ?? SEL_ANCHOR.c) - SEL_ANCHOR.c) + 1;
+    document.getElementById('tbl-cell-info').textContent = `${rCnt}×${cCnt} células (${cells.length})`;
+  }
+}
+
+function renderTable() {
+  if (!SCHEMA) return;
+  const sel = document.getElementById('tbl-select');
+  if (!sel.options.length) {
+    for (const [id, tb] of Object.entries(SCHEMA.tables)) {
+      const o = document.createElement('option');
+      o.value = id; o.textContent = tb.title;
+      sel.appendChild(o);
+    }
+  }
+  const meta = getActiveTableMeta();
+  if (!meta) return;
+  const { xc, yc, zc, rows, cols } = meta;
+  const xs = getConstVal(xc), ys = getConstVal(yc), zs = getConstVal(zc);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+
+  let html = `<table class="map"><thead><tr><th>${yc.units || 'Y'} \\ ${xc.units || 'X'}</th>`;
+  for (let c = 0; c < cols; c++) html += `<th>${xs[c]}</th>`;
+  html += `</tr></thead><tbody>`;
+  for (let r = rows - 1; r >= 0; r--) {
+    html += `<tr><th>${ys[r]}</th>`;
+    for (let c = 0; c < cols; c++) {
+      const val = zs[r * cols + c];
+      const bg = heatColor(val, minZ, maxZ);
+      html += `<td id="tc-${r}-${c}" style="background:${bg}"
+        onmousedown="cellMouseDown(event,${r},${c})"
+        onmouseenter="cellMouseEnter(${r},${c})"
+        ondblclick="startInlineEdit(${r},${c})">${val.toFixed(zc.digits)}</td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  document.getElementById('tbl-wrap').innerHTML = html;
+  updateSelectionVisuals();
+  highlightLiveTableCell();
+}
+
+window.addEventListener('mouseup', () => { DRAGGING = false; });
+
+function cellMouseDown(ev, r, c) {
+  if (ev.button !== 0) return;
+  if (INLINE_EDIT) return;
+  if (ev.shiftKey && SEL_ANCHOR) {
+    SEL_END = { r, c };
+  } else {
+    SEL_ANCHOR = { r, c };
+    SEL_END = { r, c };
+    DRAGGING = true;
+  }
+  updateSelectionVisuals();
+}
+
+function cellMouseEnter(r, c) {
+  if (!DRAGGING || INLINE_EDIT) return;
+  SEL_END = { r, c };
+  updateSelectionVisuals();
+}
+
+function highlightLiveTableCell() {
+  const meta = getActiveTableMeta();
+  if (!meta) return;
+  const xs = getConstVal(meta.xc), ys = getConstVal(meta.yc);
+  const lx = Number(LIVE[meta.tb.xLive] ?? 0), ly = Number(LIVE[meta.tb.yLive] ?? 0);
+  let bestC = 0, bestR = 0;
+  xs.forEach((v, i) => { if (Math.abs(v - lx) < Math.abs(xs[bestC] - lx)) bestC = i; });
+  ys.forEach((v, i) => { if (Math.abs(v - ly) < Math.abs(ys[bestR] - ly)) bestR = i; });
+  document.querySelectorAll('table.map td.live-cell').forEach(el => el.classList.remove('live-cell'));
+  document.getElementById(`tc-${bestR}-${bestC}`)?.classList.add('live-cell');
+}
+
+async function writeCells(updates) {
+  // updates: [{r, c, val}]
+  const meta = getActiveTableMeta();
+  if (!meta || !updates.length) return;
+  const { zc, cols } = meta;
+  const sz = typeSize(zc.type);
+  const writes = updates.map(({ r, c, val }) => {
+    const clamped = Math.max(zc.min, Math.min(zc.max, val));
+    const raw = (clamped / zc.scale) - zc.translate;
+    const off = zc.offset + (r * cols + c) * sz;
+    return { page: zc.page, offset: off, bytes: encodeRaw(raw, zc.type) };
+  });
+  try {
+    await writeECU(writes);
+    renderTable();
+  } catch (e) { toast('Erro gravando mapa: ' + e.message); }
+}
+
+function startInlineEdit(r, c, initialChar = null) {
+  const meta = getActiveTableMeta();
+  if (!meta) return;
+  const td = document.getElementById(`tc-${r}-${c}`);
+  if (!td) return;
+  const zs = getConstVal(meta.zc);
+  const curVal = zs[r * meta.cols + c];
+  INLINE_EDIT = true;
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'cell-inp';
+  inp.value = initialChar !== null ? initialChar : curVal.toFixed(meta.zc.digits);
+  td.textContent = '';
+  td.appendChild(inp);
+  inp.focus();
+  if (initialChar === null) inp.select();
+
+  let done = false;
+  const finish = async (commit, moveDir = null) => {
+    if (done) return;
+    done = true;
+    INLINE_EDIT = false;
+    const parsed = parseFloat(inp.value.replace(',', '.'));
+    if (commit && !isNaN(parsed)) {
+      const cells = getSelectedCells();
+      const targets = cells.length > 1 ? cells : [{ r, c }];
+      await writeCells(targets.map(p => ({ r: p.r, c: p.c, val: parsed })));
+    } else {
+      renderTable();
+    }
+    if (moveDir) moveSelection(moveDir.dr, moveDir.dc, false);
+  };
+
+  inp.addEventListener('keydown', ev => {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') { ev.preventDefault(); finish(true, { dr: -1, dc: 0 }); }
+    else if (ev.key === 'Tab') { ev.preventDefault(); finish(true, { dr: 0, dc: ev.shiftKey ? -1 : 1 }); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+}
+
+function moveSelection(dr, dc, expand) {
+  const meta = getActiveTableMeta();
+  if (!meta) return;
+  if (!SEL_ANCHOR) { SEL_ANCHOR = { r: 0, c: 0 }; SEL_END = { r: 0, c: 0 }; }
+  const base = SEL_END || SEL_ANCHOR;
+  const nr = Math.max(0, Math.min(meta.rows - 1, base.r + dr));
+  const nc = Math.max(0, Math.min(meta.cols - 1, base.c + dc));
+  if (expand) {
+    SEL_END = { r: nr, c: nc };
+  } else {
+    SEL_ANCHOR = { r: nr, c: nc };
+    SEL_END = { r: nr, c: nc };
+  }
+  updateSelectionVisuals();
+}
+
+async function adjustRange(delta) {
+  const meta = getActiveTableMeta();
+  const cells = getSelectedCells();
+  if (!meta || !cells.length) return;
+  const zs = getConstVal(meta.zc);
+  await writeCells(cells.map(({ r, c }) => ({ r, c, val: zs[r * meta.cols + c] + delta })));
+}
+
+async function scaleRange(mult) {
+  const meta = getActiveTableMeta();
+  const cells = getSelectedCells();
+  if (!meta || !cells.length) return;
+  const zs = getConstVal(meta.zc);
+  await writeCells(cells.map(({ r, c }) => ({ r, c, val: zs[r * meta.cols + c] * mult })));
+}
+
+async function interpolateRange() {
+  const meta = getActiveTableMeta();
+  if (!meta || !SEL_ANCHOR || !SEL_END) return;
+  const r1 = Math.min(SEL_ANCHOR.r, SEL_END.r), r2 = Math.max(SEL_ANCHOR.r, SEL_END.r);
+  const c1 = Math.min(SEL_ANCHOR.c, SEL_END.c), c2 = Math.max(SEL_ANCHOR.c, SEL_END.c);
+  if (r1 === r2 && c1 === c2) { toast('Selecione pelo menos 2 células para interpolar'); return; }
+  const zs = getConstVal(meta.zc);
+  const v11 = zs[r1 * meta.cols + c1], v12 = zs[r1 * meta.cols + c2];
+  const v21 = zs[r2 * meta.cols + c1], v22 = zs[r2 * meta.cols + c2];
+  const updates = [];
+  for (let r = r1; r <= r2; r++) {
+    const tr = (r2 === r1) ? 0 : (r - r1) / (r2 - r1);
+    for (let c = c1; c <= c2; c++) {
+      const tc = (c2 === c1) ? 0 : (c - c1) / (c2 - c1);
+      const top = v11 + (v12 - v11) * tc;
+      const bot = v21 + (v22 - v21) * tc;
+      updates.push({ r, c, val: top + (bot - top) * tr });
+    }
+  }
+  await writeCells(updates);
+  toast(`Bloco ${r2-r1+1}×${c2-c1+1} interpolado na ECU!`);
+}
+
+document.addEventListener('keydown', ev => {
+  if (CUR_TAB !== 'tables' || INLINE_EDIT) return;
+  if (ev.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName)) return;
+  if (!SEL_ANCHOR) return;
+  const cur = SEL_END || SEL_ANCHOR;
+  if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSelection(1, 0, ev.shiftKey); }
+  else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSelection(-1, 0, ev.shiftKey); }
+  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSelection(0, -1, ev.shiftKey); }
+  else if (ev.key === 'ArrowRight') { ev.preventDefault(); moveSelection(0, 1, ev.shiftKey); }
+  else if (ev.key === 'Enter' || ev.key === 'F2') { ev.preventDefault(); startInlineEdit(cur.r, cur.c); }
+  else if (ev.key === '+' || ev.key === '=' || ev.key === 'PageUp') { ev.preventDefault(); adjustRange(ev.shiftKey ? 5 : 1); }
+  else if (ev.key === '-' || ev.key === '_' || ev.key === 'PageDown') { ev.preventDefault(); adjustRange(ev.shiftKey ? -5 : -1); }
+  else if (ev.key === 'i' || ev.key === 'I') { ev.preventDefault(); interpolateRange(); }
+  else if (/^[0-9.]$/.test(ev.key) && !ev.ctrlKey && !ev.altKey) {
+    ev.preventDefault();
+    startInlineEdit(cur.r, cur.c, ev.key);
+  }
+});
+
+// --- 1D Curves ---
+function renderCurves() {
+  if (!SCHEMA) return;
+  const wrap = document.getElementById('curves-wrap');
+  wrap.innerHTML = '';
+  for (const [cid, cv] of Object.entries(SCHEMA.curves)) {
+    const xc = SCHEMA.constants[cv.xBins], yc = SCHEMA.constants[cv.yBins];
+    if (!xc || !yc) continue;
+    const xs = getConstVal(xc), ys = getConstVal(yc);
+    const box = document.createElement('div');
+    box.className = 'curve-box';
+    let ptsHtml = '';
+    for (let i = 0; i < xs.length; i++) {
+      ptsHtml += `<div class="pt">
+        <span style="font-size:10px;color:var(--muted);text-align:center">X${i+1}</span>
+        <input type="number" step="${xc.scale}" value="${xs[i]}" onchange="editCurvePt('${cid}','x',${i},this.value)" />
+        <span style="font-size:10px;color:var(--accent);text-align:center">Y${i+1}</span>
+        <input type="number" step="${yc.scale}" value="${ys[i]}" onchange="editCurvePt('${cid}','y',${i},this.value)" />
+      </div>`;
+    }
+    box.innerHTML = `<h3>${cv.title}</h3><p>${cv.help}</p>
+      <canvas id="cv-${cid}" class="curve" width="460" height="200"></canvas>
+      <div class="curve-pts">${ptsHtml}</div>`;
+    wrap.appendChild(box);
+  }
+  drawAllCurves();
+}
+
+function drawAllCurves() {
+  if (!SCHEMA) return;
+  for (const [cid, cv] of Object.entries(SCHEMA.curves)) {
+    const canvas = document.getElementById('cv-' + cid);
+    if (!canvas) continue;
+    const ctx = canvas.getContext('2d');
+    const xc = SCHEMA.constants[cv.xBins], yc = SCHEMA.constants[cv.yBins];
+    const xs = getConstVal(xc), ys = getConstVal(yc);
+    const W = canvas.width, H = canvas.height, pad = 28;
+    ctx.clearRect(0, 0, W, H);
+
+    const minX = Math.min(...xs), maxX = Math.max(...xs) || 1;
+    const minY = Math.min(yc.min, ...ys), maxY = Math.max(...ys) * 1.15 || 1;
+    const px = x => pad + ((x - minX) / Math.max(1e-6, maxX - minX)) * (W - 2 * pad);
+    const py = y => H - pad - ((y - minY) / Math.max(1e-6, maxY - minY)) * (H - 2 * pad);
+
+    // grid
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad + (i / 4) * (H - 2 * pad);
+      ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+    }
+    // live cursor
+    if (cv.xLive && LIVE[cv.xLive] !== undefined) {
+      const lx = px(Number(LIVE[cv.xLive]));
+      ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(lx, pad); ctx.lineTo(lx, H - pad); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // polyline
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    xs.forEach((x, i) => { i === 0 ? ctx.moveTo(px(x), py(ys[i])) : ctx.lineTo(px(x), py(ys[i])); });
+    ctx.stroke();
+    // points
+    xs.forEach((x, i) => {
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath(); ctx.arc(px(x), py(ys[i]), 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace';
+      ctx.fillText(ys[i], px(x) - 10, py(ys[i]) - 9);
+    });
+  }
+}
+
+async function editCurvePt(cid, axis, idx, valStr) {
+  const cv = SCHEMA.curves[cid];
+  const c = SCHEMA.constants[axis === 'x' ? cv.xBins : cv.yBins];
+  const v = parseFloat(valStr);
+  if (isNaN(v)) return;
+  const clamped = Math.max(c.min, Math.min(c.max, v));
+  const raw = (clamped / c.scale) - c.translate;
+  const off = c.offset + idx * typeSize(c.type);
+  try {
+    await writeECU([{page: c.page, offset: off, bytes: encodeRaw(raw, c.type)}]);
+    drawAllCurves();
+    toast(`Ponto ${axis.toUpperCase()}${idx+1} gravado na ECU`);
+  } catch (e) { toast('Erro curva: ' + e.message); }
+}
+
+// --- Auto Config (.ini) ---
+function renderMenu() {
+  if (!SCHEMA) return;
+  const q = (document.getElementById('cfg-search').value || '').toLowerCase();
+  let html = '';
+  for (const grp of SCHEMA.menus) {
+    const items = grp.items.filter(it => !q || it.label.toLowerCase().includes(q) || grp.title.toLowerCase().includes(q));
+    if (!items.length) continue;
+    html += `<div class="menu-grp">${grp.title}</div>`;
+    for (const it of items) {
+      const cls = it.target === CUR_DLG ? 'menu-item active' : 'menu-item';
+      html += `<div class="${cls}" onclick="openMenuItem('${it.target}')">${it.label}</div>`;
+    }
+  }
+  document.getElementById('menu-list').innerHTML = html;
+}
+
+function openMenuItem(target) {
+  if (SCHEMA.tables[target]) {
+    setTab('tables');
+    document.getElementById('tbl-select').value = target;
+    renderTable();
+    return;
+  }
+  if (SCHEMA.curves[target]) {
+    setTab('curves');
+    return;
+  }
+  if (SCHEMA.dialogs[target]) {
+    CUR_DLG = target;
+    renderMenu();
+    renderDialog(target);
+  }
+}
+
+function evalCond(cond) {
+  if (!cond) return true;
+  try {
+    const expr = cond.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (m) => {
+      const c = SCHEMA.constants[m];
+      return c ? String(getConstVal(c)) : m;
+    });
+    return Boolean(Function('"use strict";return (' + expr + ')')());
+  } catch { return true; }
+}
+
+function renderDialog(did) {
+  const dlg = SCHEMA.dialogs[did];
+  if (!dlg) return;
+  const panel = document.getElementById('dlg-panel');
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h2 style="margin:0">${dlg.title}</h2>
+    <div style="display:flex;gap:8px">
+      <button class="primary" onclick="saveDialog('${did}')">Gravar RAM</button>
+      <button class="burn" onclick="burnFlash()">Burn Flash</button>
+    </div>
+  </div>`;
+
+  for (const f of dlg.fields) {
+    if (f.kind === 'command') {
+      html += `<div class="field-row"><label>${f.label}</label>
+        <button class="primary" onclick="runCmd('${f.cmd}')">${f.label}</button><span class="u">CMD</span></div>`;
+      continue;
+    }
+    const c = SCHEMA.constants[f.var];
+    const vis = evalCond(f.cond);
+    if (!c) {
+      // Computed readonly channel
+      const cv = LIVE[f.var] !== undefined ? LIVE[f.var] : '--';
+      html += `<div class="field-row ${vis ? '' : 'hidden'}"><label>${f.label}</label>
+        <input type="text" value="${cv}" disabled /><span class="u">calc</span></div>`;
+      continue;
+    }
+    const curVal = getConstVal(c);
+    let ctrl = '';
+    if (c.kind === 'bits') {
+      ctrl = `<select data-var="${c.name}" onchange="markDirty(this)">` +
+        c.options.map((opt, idx) => opt === 'INVALID' ? '' :
+          `<option value="${idx}" ${idx === curVal ? 'selected' : ''}>${opt}</option>`
+        ).join('') + `</select>`;
+    } else if (c.kind === 'scalar') {
+      ctrl = `<input type="number" data-var="${c.name}" value="${curVal}" min="${c.min}" max="${c.max}" step="${c.scale}" oninput="markDirty(this)" />`;
+    }
+    html += `<div class="field-row ${vis ? '' : 'hidden'}" data-cond="${f.cond || ''}">
+      <label>${f.label}</label>${ctrl}<span class="u">${c.units || ''}</span></div>`;
+  }
+  panel.innerHTML = html;
+}
+
+function markDirty(el) {
+  el.closest('.field-row')?.classList.add('dirty');
+}
+
+async function saveDialog(did) {
+  const panel = document.getElementById('dlg-panel');
+  const dirtyEls = panel.querySelectorAll('.field-row.dirty [data-var]');
+  if (!dirtyEls.length) { toast('Nenhuma alteração pendente'); return; }
+  const writes = [];
+  for (const el of dirtyEls) {
+    const c = SCHEMA.constants[el.dataset.var];
+    if (!c) continue;
+    if (c.kind === 'scalar') {
+      const v = Math.max(c.min, Math.min(c.max, parseFloat(el.value)));
+      const raw = (v / c.scale) - c.translate;
+      writes.push({page: c.page, offset: c.offset, bytes: encodeRaw(raw, c.type)});
+    } else if (c.kind === 'bits') {
+      const oldByte = readRaw(c.page, c.offset, c.type);
+      const mask = ((1 << (c.bitHi - c.bitLo + 1)) - 1) << c.bitLo;
+      const nv = (oldByte & ~mask) | ((parseInt(el.value, 10) << c.bitLo) & mask);
+      writes.push({page: c.page, offset: c.offset, bytes: encodeRaw(nv, c.type)});
+    }
+  }
+  try {
+    await writeECU(writes);
+    renderDialog(did);
+    toast(`${writes.length} parâmetro(s) gravado(s) na RAM da ECU!`);
+  } catch (e) { toast('Erro ao gravar: ' + e.message); }
+}
+
+async function runCmd(cmd) {
+  try {
+    if (MODE === 'serial') {
+      const raw = SCHEMA.commands[cmd];
+      if (!raw) throw new Error('Comando desconhecido');
+      await SERIAL.txrx(new TextEncoder().encode(raw), 0);
+      toast(`Comando ${cmd} enviado via USB!`);
+    } else {
+      const r = await fetch('/api/cmd', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({cmd})
+      });
+      const j = await r.json();
+      toast(j.ok ? `Comando ${cmd} executado!` : 'Erro: ' + j.error);
+    }
+  } catch (e) { toast('Erro comando: ' + e.message); }
+}
+
+async function boot() {
+  buildDashSkeleton();
+  try {
+    const r = await fetch('/api/schema');
+    if (!r.ok) throw new Error('static');
+    SCHEMA = await r.json();
+    MODE = 'http';
+    if ('serial' in navigator) document.getElementById('btn-usb').style.display = 'inline-block';
+  } catch {
+    const r = await fetch('./custom_zynq_ecu.ini');
+    SCHEMA = parseIniJS(await r.text());
+    MODE = 'serial';
+    document.getElementById('btn-usb').style.display = 'inline-block';
+    setPill('p-sig', '', 'Modo USB (Web Serial)');
+  }
+  renderMenu();
+  const firstDlg = Object.keys(SCHEMA.dialogs)[0];
+  if (firstDlg) { CUR_DLG = firstDlg; renderMenu(); renderDialog(firstDlg); }
+  if (MODE === 'http') await loadPages();
+  pollLive();
+}
+boot();
+</script>
+</body>
+</html>
